@@ -43,16 +43,14 @@ The demo stacks three layers: **siloed operational telemetry** at the plant edge
 
 ## Repository layout
 
-This repository (**OTIP**) is **documentation-only** at the root. Folders such as [`truck-fleet/`](truck-fleet/), [`crusher-fleet/`](crusher-fleet/), [`water-spray-fleet/`](water-spray-fleet/), and [`fleet-integration/`](fleet-integration/) hold per-system design notes, architecture diagrams, and runbooks — not deployable application code.
-
-**Implementation** (PoC source and OpenShift manifests) lives in the companion repo **[alleo-work](https://github.com/SimonDelord/alleo-work)**:
+This repository (**OTIP**) holds **design documentation**, **PoC application code**, and **OpenShift manifests** for the mining fleet demo. Folders such as [`truck-fleet/`](truck-fleet/), [`crusher-fleet/`](crusher-fleet/), [`water-spray-fleet/`](water-spray-fleet/), and [`fleet-integration/`](fleet-integration/) contain per-system design notes, architecture diagrams, and runbooks.
 
 | Path | Purpose |
 |------|---------|
-| [`poc/`](https://github.com/SimonDelord/alleo-work/tree/main/poc/) | Source code for the demo applications — truck agents, MQTT ingest, crusher PLCs, historian, Kafka bridges, live map, and related services |
-| [`openshift/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/) | Kubernetes / OpenShift YAML — namespaces, Deployments, BuildConfigs, Kafka topics, connectors, and other cluster artefacts |
+| [`poc/`](poc/) | Source code for the demo applications — truck agents, MQTT ingest, crusher PLCs, historian, Kafka bridges, live map, and related services |
+| [`openshift/`](openshift/) | Kubernetes / OpenShift YAML — namespaces, Deployments, BuildConfigs, Kafka topics, connectors, and other cluster artefacts |
 
-Each `poc/` and `openshift/` subdirectory is named after its fleet namespace (e.g. `truck-fleet`, `crusher-fleet`, `fleet-integration`, `mining-fleet-kafka`, `fleet-live-map`). Use OTIP for **what** each system does; use alleo-work for **how to build and deploy** it.
+Each `poc/` and `openshift/` subdirectory is named after its fleet namespace (e.g. `truck-fleet`, `crusher-fleet`, `fleet-integration`, `mining-fleet-kafka`, `fleet-live-map`).
 
 ---
 
