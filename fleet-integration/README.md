@@ -199,8 +199,8 @@ oc exec -n crusher-fleet deploy/postgresql -- \
 
 | Path | Contents |
 |------|----------|
-| [`poc/fleet-integration/`](../../poc/fleet-integration/) | Python services + Dockerfiles |
-| [`openshift/fleet-integration/`](../../openshift/fleet-integration/) | Namespace, ConfigMaps, BuildConfigs, Deployments, Kafka topics |
+| [`poc/fleet-integration/`](https://github.com/SimonDelord/alleo-work/tree/main/poc/fleet-integration/) | Python services + Dockerfiles |
+| [`openshift/fleet-integration/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/fleet-integration/) | Namespace, ConfigMaps, BuildConfigs, Deployments, Kafka topics |
 
 ### Components
 
@@ -217,12 +217,13 @@ oc exec -n crusher-fleet deploy/postgresql -- \
 ## Prerequisites
 
 1. **`truck-fleet`** running (MQTT broker, truck agents, mqtt-ingest).
-2. **Kafka / AMQ Streams** — dedicated Strimzi cluster `mining-fleet-cluster` in namespace `mining-fleet-kafka` (see `openshift/mining-fleet-kafka/`).
-3. Optional but recommended: deploy `openshift/mining-fleet-kafka/06-kafka-console.yaml` to inspect topics, consumer groups, and message flow through the dedicated cluster.
+2. **Kafka / AMQ Streams** — dedicated Strimzi cluster `mining-fleet-cluster` in namespace `mining-fleet-kafka` (see [`openshift/mining-fleet-kafka/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/mining-fleet-kafka/) in alleo-work).
+3. Optional but recommended: deploy [`openshift/mining-fleet-kafka/06-kafka-console.yaml`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/mining-fleet-kafka/06-kafka-console.yaml) (alleo-work) to inspect topics, consumer groups, and message flow through the dedicated cluster.
 
 ### Install Kafka topics (when cluster has Strimzi)
 
 ```bash
+# From alleo-work repository root
 oc apply -f openshift/fleet-integration/03-kafka-topics.yaml
 ```
 
@@ -311,4 +312,4 @@ Water-spray rules will consume the same Kafka bus (`fleet.trucks.events`, `fleet
 
 - [truck-fleet/README.md](../truck-fleet/README.md) — truck MQTT/Postgres (unchanged agents)
 - [crusher-fleet/README.md](../crusher-fleet/README.md) — future crusher Kafka producer
-- [`openshift/fleet-integration/README.md`](../../openshift/fleet-integration/README.md) — manifest index
+- [`openshift/fleet-integration/README.md`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/fleet-integration/README.md) — manifest index

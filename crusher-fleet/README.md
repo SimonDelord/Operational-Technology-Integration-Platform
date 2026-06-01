@@ -85,7 +85,7 @@ Optional slow drain (`DRAIN_RATE_PCT`) simulates ore processing — fill decreas
 
 Default state: empty (`INITIAL_FILL_PCT=0`) until trucks dump via the orchestration layer.
 
-Configure per deployment with `CRUSHER_ID`, `INITIAL_FILL_PCT`, and timing env vars (see `openshift/crusher-fleet/02-configmaps-secrets.yaml`).
+Configure per deployment with `CRUSHER_ID`, `INITIAL_FILL_PCT`, and timing env vars (see [`openshift/crusher-fleet/02-configmaps-secrets.yaml`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/crusher-fleet/02-configmaps-secrets.yaml) in alleo-work).
 
 ---
 
@@ -120,9 +120,9 @@ Same fields as telemetry (except `id`), keyed by `crusher_id`. Updated via upser
 
 | Path | Purpose |
 |------|---------|
-| [`poc/crusher-fleet/crusher_plc.py`](../../poc/crusher-fleet/crusher_plc.py) | Modbus TCP crusher PLC simulator |
-| [`poc/crusher-fleet/historian.py`](../../poc/crusher-fleet/historian.py) | Modbus poller → PostgreSQL |
-| [`openshift/crusher-fleet/`](../../openshift/crusher-fleet/) | OpenShift manifests |
+| [`poc/crusher-fleet/crusher_plc.py`](https://github.com/SimonDelord/alleo-work/tree/main/poc/crusher-fleet/crusher_plc.py) | Modbus TCP crusher PLC simulator |
+| [`poc/crusher-fleet/historian.py`](https://github.com/SimonDelord/alleo-work/tree/main/poc/crusher-fleet/historian.py) | Modbus poller → PostgreSQL |
+| [`openshift/crusher-fleet/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/crusher-fleet/) | OpenShift manifests |
 
 ---
 
@@ -136,6 +136,7 @@ Same fields as telemetry (except `id`), keyed by `crusher_id`. Updated via upser
 ### Apply order
 
 ```bash
+# From alleo-work repository root
 oc apply -f openshift/crusher-fleet/01-namespace.yaml
 oc apply -f openshift/crusher-fleet/02-configmaps-secrets.yaml
 oc apply -f openshift/crusher-fleet/03-postgresql.yaml
@@ -145,7 +146,7 @@ oc apply -f openshift/crusher-fleet/04-crusher-plc.yaml
 oc apply -f openshift/crusher-fleet/06-historian.yaml
 ```
 
-See [`openshift/crusher-fleet/README.md`](../../openshift/crusher-fleet/README.md) for manifest details.
+See [`openshift/crusher-fleet/README.md`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/crusher-fleet/README.md) for manifest details.
 
 ---
 
@@ -196,6 +197,7 @@ No direct truck→crusher coupling — connection is only through `fleet-integra
 ## Local development
 
 ```bash
+# From alleo-work clone
 cd poc/crusher-fleet
 pip install -r requirements.txt
 

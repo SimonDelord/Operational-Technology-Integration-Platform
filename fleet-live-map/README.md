@@ -71,8 +71,8 @@ Debezium CDC topics (`fleet.truckdb.public.truck_state`, `fleet.crusherdb.public
 
 | Path | Contents |
 |------|----------|
-| [`poc/mining-fleet-live-map/`](../../poc/mining-fleet-live-map/) | `live_map_server.py`, `kafka_state.py`, Leaflet UI, Dockerfile |
-| [`openshift/fleet-live-map/`](../../openshift/fleet-live-map/) | Namespace, ConfigMap, BuildConfig, Deployment, Service, Route |
+| [`poc/mining-fleet-live-map/`](https://github.com/SimonDelord/alleo-work/tree/main/poc/mining-fleet-live-map/) | `live_map_server.py`, `kafka_state.py`, Leaflet UI, Dockerfile |
+| [`openshift/fleet-live-map/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/fleet-live-map/) | Namespace, ConfigMap, BuildConfig, Deployment, Service, Route |
 
 ---
 
@@ -81,6 +81,7 @@ Debezium CDC topics (`fleet.truckdb.public.truck_state`, `fleet.crusherdb.public
 Prerequisites: `truck-fleet`, `crusher-fleet`, `mining-fleet-kafka`, and `fleet-integration` bridges running with producers pointed at `mining-fleet-kafka`.
 
 ```bash
+# Run from alleo-work repository root
 oc apply -f openshift/fleet-live-map/
 oc start-build fleet-live-map -n fleet-live-map --wait
 ```
@@ -88,6 +89,7 @@ oc start-build fleet-live-map -n fleet-live-map --wait
 For a local binary build without pushing to GitHub:
 
 ```bash
+# From alleo-work clone:
 oc start-build fleet-live-map --from-dir=poc/mining-fleet-live-map -n fleet-live-map --wait
 ```
 

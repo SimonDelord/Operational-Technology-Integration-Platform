@@ -4,7 +4,7 @@ Quick index of **Deployments**, **StatefulSets**, and **KafkaConnectors** used i
 
 **Not included:** OpenShift `BuildConfig` build pods (image builds only), the separate `kafka-demo` PoC stack, or the planned `water-spray-fleet` namespace (not deployed in this demo).
 
-Manifests: [`openshift/`](../../openshift/) · Design docs: [`README.md`](README.md)
+Manifests: [`openshift/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/) · Design docs: [`README.md`](README.md)
 
 ---
 
