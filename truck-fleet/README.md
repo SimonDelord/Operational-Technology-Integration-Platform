@@ -71,7 +71,7 @@ mosquitto_pub -h mqtt-broker.truck-fleet.svc -t 'new-destination/TR1/crusher-2' 
 
 ## Truck simulation
 
-Each truck agent ([`poc/truck-fleet/truck_agent.py`](https://github.com/SimonDelord/alleo-work/tree/main/poc/truck-fleet/truck_agent.py)) cycles through four states on a fixed tick interval (default **2 s**):
+Each truck agent ([`poc/truck-fleet/truck_agent.py`](../poc/truck-fleet/truck_agent.py)) cycles through four states on a fixed tick interval (default **2 s**):
 
 | State | Behaviour |
 |-------|-----------|
@@ -146,8 +146,8 @@ Same fields as telemetry (except `id`), keyed by `truck_id`. Updated via **UPSER
 
 | Path | Contents |
 |------|----------|
-| [`poc/truck-fleet/`](https://github.com/SimonDelord/alleo-work/tree/main/poc/truck-fleet/) | `truck_agent.py`, `mqtt_ingest.py`, Dockerfiles, `requirements.txt` |
-| [`openshift/truck-fleet/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/truck-fleet/) | Numbered manifests: namespace, ConfigMaps/Secrets, broker, Postgres, BuildConfigs, Deployments |
+| [`poc/truck-fleet/`](../poc/truck-fleet/) | `truck_agent.py`, `mqtt_ingest.py`, Dockerfiles, `requirements.txt` |
+| [`openshift/truck-fleet/`](../openshift/truck-fleet/) | Numbered manifests: namespace, ConfigMaps/Secrets, broker, Postgres, BuildConfigs, Deployments |
 
 ---
 
@@ -162,7 +162,7 @@ Same fields as telemetry (except `id`), keyed by `truck_id`. Updated via **UPSER
 ### Apply
 
 ```bash
-# From alleo-work repository root
+# From OTIP repository root
 oc apply -f openshift/truck-fleet/01-namespace.yaml
 oc apply -f openshift/truck-fleet/02-configmaps-secrets.yaml
 oc apply -f openshift/truck-fleet/03-mqtt-broker.yaml
@@ -175,7 +175,7 @@ oc apply -f openshift/truck-fleet/07-mqtt-ingest.yaml
 
 Then deploy **[fleet-integration](../fleet-integration/README.md)** for destination routing.
 
-BuildConfigs in alleo-work clone **`poc/truck-fleet`** from GitHub ([alleo-work](https://github.com/SimonDelord/alleo-work), branch `main`). Adjust `git.uri` in `openshift/truck-fleet/05-buildconfigs.yaml` if using a fork.
+BuildConfigs clone **`poc/truck-fleet`** from this repo on branch `main`. Adjust `git.uri` in `openshift/truck-fleet/05-buildconfigs.yaml` if using a fork.
 
 ### Verify pods
 
@@ -240,6 +240,6 @@ Truck telemetry reaches Kafka via **`fleet-integration/kafka-truck-bridge`** (Ph
 
 ## Also see
 
-- [`poc/truck-fleet/README.md`](https://github.com/SimonDelord/alleo-work/tree/main/poc/truck-fleet/README.md) — source files and local run hints
-- [`openshift/truck-fleet/README.md`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/truck-fleet/README.md) — manifest index and verify commands
+- [`poc/truck-fleet/README.md`](../poc/truck-fleet/README.md) — source files and local run hints
+- [`openshift/truck-fleet/README.md`](../openshift/truck-fleet/README.md) — manifest index and verify commands
 - [fleet-integration](../fleet-integration/README.md) — Kafka orchestration and destination routing

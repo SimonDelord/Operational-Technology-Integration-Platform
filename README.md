@@ -1,6 +1,6 @@
 # Mining fleet demo — three plant systems
 
-> **Repository role:** This repo (**Operational Technology Integration Platform / OTIP**) holds **architecture and design documentation** for the mining fleet demo on OpenShift. **PoC application code** and **OpenShift manifests** are maintained in [alleo-work](https://github.com/SimonDelord/alleo-work) (`poc/`, `openshift/`).
+> **Repository role:** This repo (**Operational Technology Integration Platform / OTIP**) is the single home for **design documentation**, **PoC application code** (`poc/`), and **OpenShift manifests** (`openshift/`) for the mining fleet demo on OpenShift.
 
 This document describes a **Fleet Management System** demonstration built on **OpenShift / ROSA**. The demo models a small open-pit mine as **three independent operational systems**, each running in its own Kubernetes namespace as a **closed ecosystem**. A shared **Apache Kafka** cluster (**Red Hat AMQ Streams** on OpenShift) connects them in a second phase.
 
@@ -172,7 +172,7 @@ Modbus and historian access stay inside **`crusher-fleet`**. Other systems learn
 
 - Each spray is a **Pod representing a field PLC** — it **only speaks Modbus** (holding registers for spray on/off, pressure/flow, fault).
 - In **phase 1**, you can prove the namespace by writing registers with a test client or a small simulator.
-- In **phase 2**, a **Kafka → Modbus bridge** (same pattern as [`poc/modbus/kafka_to_arm_modbus.py`](https://github.com/SimonDelord/alleo-work/tree/main/poc/modbus/kafka_to_arm_modbus.py)) consumes **`fleet.sprays.commands`** and writes the appropriate PLC.
+- In **phase 2**, a **Kafka → Modbus bridge** consumes **`fleet.sprays.commands`** and writes the appropriate PLC registers.
 - A **`spray-controller`** (optional Pod) subscribes to **truck** and **crusher** Kafka topics, applies rules (which zone, how long, debounce), and publishes spray commands. The PLCs themselves remain dumb devices.
 
 ### Example control rules (phase 2)
@@ -194,7 +194,7 @@ South spray follows the same pattern with south crusher / south zone events.
 
 ## Phase 2 — Kafka integration (overview)
 
-Once each ecosystem runs stand-alone, deploy a **Kafka** cluster with **Red Hat AMQ Streams** (see [alleo-work](https://github.com/SimonDelord/alleo-work) (`openshift/`, `poc/modbus/`) for topic wiring and manifests). Integration uses **three complementary patterns**:
+Once each ecosystem runs stand-alone, deploy a **Kafka** cluster with **Red Hat AMQ Streams** (see [`openshift/mining-fleet-kafka/`](openshift/mining-fleet-kafka/) and [`openshift/fleet-integration/`](openshift/fleet-integration/) for topic wiring and manifests). Integration uses **three complementary patterns**:
 
 ```text
 truck-fleet (unchanged)          crusher-fleet (unchanged)        water-spray-fleet (unchanged)
@@ -263,19 +263,72 @@ Per-system design documentation:
 
 ---
 
-## Repository map
+## Demo pods and workloads
 
-Documentation lives in **this repo**. Implementation artifacts live in **[alleo-work](https://github.com/SimonDelord/alleo-work)**.
+Quick index of **Deployments**, **StatefulSets**, and **KafkaConnectors** used in the mining fleet demo on OpenShift, organized by namespace. Pod names follow the usual `{workload}-{replicaset-hash}-{pod-id}` pattern (Kafka brokers use `{cluster}-{pool}-{ordinal}`).
 
-| Path | Relevance |
-|------|-----------|
-| [`DEMO-PODS.md`](DEMO-PODS.md) | **Deployed pod and workload index** for the mining fleet demo on OpenShift |
-| [`poc/modbus/README.md`](https://github.com/SimonDelord/alleo-work/tree/main/poc/modbus) (alleo-work) | Modbus PLC sims; **Modbus → Kafka** and **Kafka → Modbus** bridges |
-| [`poc/csv/README.md`](https://github.com/SimonDelord/alleo-work/tree/main/poc/csv) (alleo-work) | **S3 CSV upload** and **S3 → Kafka** (crusher export handoff pattern) |
-| [`poc/truck-fleet/README.md`](https://github.com/SimonDelord/alleo-work/tree/main/poc/truck-fleet/README.md) | MQTT truck agents + **mqtt-ingest → PostgreSQL** |
-| [`poc/fleet-integration/`](https://github.com/SimonDelord/alleo-work/tree/main/poc/fleet-integration/) | Kafka orchestration: destination-router, mqtt-routing-bridge, demo bridges |
-| [`openshift/truck-fleet/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/truck-fleet/) | Truck fleet namespace, Mosquitto, Postgres, BuildConfigs |
-| [`openshift/fleet-integration/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/fleet-integration/) | Fleet integration namespace, Kafka topic manifests, Deployments |
+**Not included:** OpenShift `BuildConfig` build pods (image builds only), the separate `kafka-demo` PoC stack, or the planned `water-spray-fleet` namespace (not deployed in this demo).
+
+Manifests: [`openshift/`](openshift/)
+
+### `truck-fleet`
+
+Mobile haul fleet — MQTT telemetry, PostgreSQL ingest.
+
+- **`mqtt-broker`** — Eclipse Mosquitto broker that relays truck telemetry and destination commands between agents and downstream services.
+- **`mqtt-ingest`** — Subscribes to `fleet/trucks/+/telemetry` and writes normalized truck rows into PostgreSQL.
+- **`postgresql`** — PostgreSQL database storing truck telemetry history and the latest snapshot per truck.
+- **`truck-tr1`** — Simulated haul truck TR1 that cycles through load/haul/dump/return and publishes MQTT telemetry.
+- **`truck-tr2`** — Simulated haul truck TR2 that cycles through load/haul/dump/return and publishes MQTT telemetry.
+- **`truck-tr3`** — Simulated haul truck TR3 that cycles through load/haul/dump/return and publishes MQTT telemetry.
+
+### `crusher-fleet`
+
+Fixed plant — Modbus crusher PLCs and plant historian.
+
+- **`crusher-1`** — Modbus TCP PLC simulator for crusher bay north exposing fill level, status, and dump-count registers.
+- **`crusher-2`** — Modbus TCP PLC simulator for crusher bay south exposing fill level, status, and dump-count registers.
+- **`historian`** — Polls crusher Modbus registers every few seconds and persists time-series samples and latest state to PostgreSQL.
+- **`postgresql`** — PostgreSQL database storing crusher telemetry history and current fill/status per crusher.
+
+### `fleet-integration`
+
+Kafka orchestration layer — bridges MQTT, Modbus, and routing logic.
+
+- **`kafka-truck-bridge`** — Mirrors truck MQTT telemetry into the `fleet.trucks.telemetry` Kafka topic for downstream consumers.
+- **`crusher-fill-bridge`** — Detects truck dump events from MQTT, writes fill to crusher Modbus registers, and publishes `fleet.crushers.state`.
+- **`destination-router`** — Consumes truck telemetry and crusher state from Kafka and emits reroute or stop/resume commands when bays are at capacity.
+- **`mqtt-routing-bridge`** — Consumes Kafka routing and truck commands and publishes retained MQTT destination updates and stop/resume messages to trucks.
+- **`crusher-state-producer`** — Deprecated mock crusher-state publisher (replicas 0; replaced by `crusher-fill-bridge`).
+
+### `fleet-live-map`
+
+Kafka-backed operator dashboard.
+
+- **`fleet-live-map`** — Web dashboard that consumes fleet Kafka topics and renders a live map with trucks, crusher fill, and routing exceptions.
+
+### `mining-fleet-kafka`
+
+Dedicated AMQ Streams / Strimzi stack for the mining fleet demo (separate from `kafka-demo`).
+
+- **`mining-fleet-cluster-mining-fleet-pool`** — Three-node KRaft Kafka broker/controller pool (pods `…-pool-0`, `…-pool-1`, `…-pool-2`) hosting all `fleet.*` topics.
+- **`mining-fleet-cluster-entity-operator`** — Strimzi entity operator that reconciles KafkaTopic and KafkaUser resources for `mining-fleet-cluster`.
+- **`mining-fleet-cluster-kafka-exporter`** — Prometheus metrics exporter exposing broker, topic, and consumer-group statistics for the cluster.
+- **`fleet-cdc-connect`** — Kafka Connect worker (StatefulSet; pod `fleet-cdc-connect-connect-0`) running Debezium for PostgreSQL CDC.
+- **`truck-postgres-source`** — KafkaConnector (Debezium) that streams row-level changes from `truck-fleet` PostgreSQL into Kafka.
+- **`crusher-postgres-source`** — KafkaConnector (Debezium) that streams row-level changes from `crusher-fleet` PostgreSQL into Kafka.
+- **`mining-fleet-console-console-deployment`** — Streamshub Kafka Console UI for browsing topics, consumer groups, and messages in the dedicated cluster.
+- **`mining-fleet-console-prometheus-deployment`** — Prometheus instance backing metrics and health views inside the Streamshub Kafka Console.
+
+Verify on cluster:
+
+```bash
+for ns in truck-fleet crusher-fleet fleet-integration fleet-live-map mining-fleet-kafka; do
+  echo "=== $ns ==="
+  oc get deploy,sts -n "$ns"
+done
+oc get kafkaconnector -n mining-fleet-kafka
+```
 
 ---
 
@@ -304,7 +357,7 @@ Documentation lives in **this repo**. Implementation artifacts live in **[alleo-
 
 ## Next documents
 
-- **Phase 2 runbook** — Red Hat AMQ Streams install, topic manifests ([`openshift/fleet-integration/03-kafka-topics.yaml`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/fleet-integration/03-kafka-topics.yaml) in alleo-work), Debezium connector, S3 poller, Modbus bridge env vars (to be added).
-- **OpenShift manifests** — in [alleo-work `openshift/`](https://github.com/SimonDelord/alleo-work/tree/main/openshift/) (truck fleet, fleet-integration, crusher-fleet, mining-fleet-kafka, fleet-live-map).
+- **Phase 2 runbook** — Red Hat AMQ Streams install, topic manifests ([`openshift/fleet-integration/03-kafka-topics.yaml`](openshift/fleet-integration/03-kafka-topics.yaml)), Debezium connector, S3 poller, Modbus bridge env vars (to be added).
+- **OpenShift manifests** — [`openshift/`](openshift/) (truck fleet, fleet-integration, crusher-fleet, mining-fleet-kafka, fleet-live-map).
 
 For questions or extensions (OPC UA gateway, Metrics-style cloud export), keep crushers on **Modbus + historian + S3** and trucks on **MQTT + Postgres**; use Kafka only for **coordination** and **spray control**, not as a replacement for the historian archive.
