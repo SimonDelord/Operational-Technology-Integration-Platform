@@ -95,17 +95,6 @@ Haul trucks move material between the **loading area** and **crusher bays** (nor
 - Position history / trails for the live map
 - Crusher bay summary tables (e.g. `overload_bays` fill %) when a bridge or orchestrator updates them for a unified view
 
-### Stand-alone demo modes
-
-| Mode | Description |
-|------|-------------|
-| **Scripted orchestrator** | A single service writes Postgres directly to tell a deterministic story (fastest for UI demos). |
-| **MQTT agents** | Truck Pods publish/subscribe on MQTT; ingest fills Postgres — closer to production edge architecture. |
-
-### Namespace boundary
-
-Everything required to run trucks (broker, ingest, DB, truck deployments) lives in **`truck-fleet`**. External consumers should use **SQL APIs**, HTTP gateways, or **Kafka** (phase 2), not raw MQTT from outside the namespace.
-
 ---
 
 ## 2. Crushers (`crusher-fleet`)
@@ -154,10 +143,6 @@ Everything required to run trucks (broker, ingest, DB, truck deployments) lives 
 - The **historian** stores high-volume time-series **inside the namespace**. This mimics a site historian (AVEVA PI–style) without claiming a specific vendor product.
 - **`historian-export`** rolls up recent samples into a **CSV file** and uploads to **S3** on a schedule. This mimics batch reporting, compliance exports, and offline analysis — not sub-second fleet control.
 
-### Namespace boundary
-
-Modbus and historian access stay inside **`crusher-fleet`**. Other systems learn crusher state via **S3 objects**, **Kafka events** (phase 2), or a thin **bridge** that copies latest fill % into truck-fleet Postgres for a unified map.
-
 ---
 
 ## 3. Water sprays (`water-spray-fleet`)
@@ -187,21 +172,6 @@ Modbus and historian access stay inside **`crusher-fleet`**. Other systems learn
 - In **phase 1**, you can prove the namespace by writing registers with a test client or a small simulator.
 - In **phase 2**, a **Kafka → Modbus bridge** consumes **`fleet.sprays.commands`** and writes the appropriate PLC registers.
 - A **`spray-controller`** (optional Pod) subscribes to **truck** and **crusher** Kafka topics, applies rules (which zone, how long, debounce), and publishes spray commands. The PLCs themselves remain dumb devices.
-
-### Example control rules (phase 2)
-
-| Event source | Example event | Spray action |
-|--------------|---------------|--------------|
-| `fleet.crushers.events` | `dump_received` @ North | North spray **ON** for N seconds |
-| `fleet.crushers.events` | `crusher_full` @ North | North spray **ON** until accepting again |
-| `fleet.trucks.events` | `entered_zone` = north haul road | North spray **ON** |
-| `fleet.trucks.events` | `left_zone` | North spray **OFF** (or timed off) |
-
-South spray follows the same pattern with south crusher / south zone events.
-
-### Namespace boundary
-
-**`water-spray-fleet`** contains only spray PLCs and spray-specific bridges/controllers. It does **not** host the MQTT broker or crusher historian. Triggers arrive via **Kafka** (or manual Modbus during bench testing).
 
 ---
 
@@ -235,31 +205,6 @@ See **[fleet-integration/README.md](fleet-integration/README.md)** for topic con
 | **CDC** | `truck-fleet` PostgreSQL | Row changes on trucks, routes, assignments | Downstream analytics, spray rules, audit |
 | **S3 API** | `crusher-fleet` CSV objects | Historian export files | Batch ingest, replay, external reporting; optional Kafka producer on new object |
 | **Modbus bridges** | Crusher & spray PLCs | Live register reads / writes | `collector → Kafka` (telemetry/events); `Kafka → Modbus` (spray commands) |
-
-### Suggested Kafka topic prefix
-
-Use a single prefix for clarity, e.g. `fleet.*`:
-
-| Topic | Direction | Content |
-|-------|-----------|---------|
-| `fleet.trucks.telemetry` | Produce from kafka-truck-bridge or CDC | Position, payload, status, destination |
-| `fleet.trucks.events` | Produce from trucks / ingest | `entered_zone`, `dump_started`, `rerouted`, … |
-| `fleet.crushers.state` | Produce from plant-collector or demo producer | Periodic fill %, status, at_capacity |
-| `fleet.crushers.events` | Produce from plant-collector | `crusher_full`, `dump_received`, `fault`, … |
-| `fleet.routing.commands` | Produce from destination-router; consume by mqtt-routing-bridge | `{ truck_id, crusher_name, reason, decided_at }` |
-| `fleet.sprays.commands` | Consume by kafka-to-spray-modbus | `{ zone: north\|south, action: on\|off, reason }` |
-| `fleet.sprays.status` | Produce from Modbus poll | Spray on, pressure, fault |
-
-Partition keys: `truck_id`, `crusher_id`, `zone_id` where ordering matters.
-
-### Unified operator view
-
-The **live map** and Grafana dashboards can continue to read **truck-fleet PostgreSQL**. Crusher bays on that UI are updated by:
-
-- a **bridge** consuming Kafka or S3/latest snapshot, or
-- CDC + stream processor writing `overload_bays`,
-
-so operators still have one screen while backends stay decoupled.
 
 ---
 
