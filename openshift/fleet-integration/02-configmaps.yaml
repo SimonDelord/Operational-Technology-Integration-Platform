@@ -1,0 +1,59 @@
+# Shared env for fleet-integration orchestration services.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fleet-integration-env
+  namespace: fleet-integration
+data:
+  KAFKA_BOOTSTRAP_SERVERS: "mining-fleet-cluster-kafka-bootstrap.mining-fleet-kafka.svc:9092"
+  KAFKA_TOPIC_TRUCK_TELEMETRY: "fleet.trucks.telemetry"
+  KAFKA_TOPIC_CRUSHER_STATE: "fleet.crushers.state"
+  KAFKA_TOPIC_ROUTING_COMMANDS: "fleet.routing.commands"
+  KAFKA_TOPIC_TRUCK_COMMANDS: "fleet.truck.commands"
+  MQTT_BROKER: "mqtt-broker.truck-fleet.svc:1883"
+  MQTT_HOST: "mqtt-broker.truck-fleet.svc"
+  MQTT_PORT: "1883"
+  MQTT_TOPIC_SUBSCRIBE: "fleet/trucks/+/telemetry"
+  MQTT_NEW_DESTINATION_TOPIC: "new-destination"
+  MQTT_TRUCK_COMMAND_TOPIC_PREFIX: "fleet/trucks"
+  ROUTING_SOURCE: "fleet-integration"
+  ROUTING_ACTIVE_STATES: "hauling"
+  VALID_CRUSHERS: "crusher-1,crusher-2"
+  FALLBACK_CRUSHER: "crusher-2"
+  CAPACITY_FILL_PCT: "90"
+  PUBLISH_INTERVAL_SEC: "10"
+  LOAD_DROP_THRESHOLD: "5.0"
+  FILL_PER_LOAD_PCT: "0.16"
+  MODBUS_TIMEOUT_SEC: "5.0"
+---
+# Modbus TCP targets for crusher-fill-bridge (cross-namespace to crusher-fleet Services).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crusher-modbus-targets
+  namespace: fleet-integration
+data:
+  CRUSHER_MODBUS_TARGETS: "crusher-1:crusher-1.crusher-fleet.svc:502,crusher-2:crusher-2.crusher-fleet.svc:502"
+---
+# Deprecated Phase 1 mock — replaced by crusher-fill-bridge publishing live Modbus state.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-crusher-state
+  namespace: fleet-integration
+data:
+  crushers.yaml: |
+    crushers:
+      crusher-1:
+        status: full
+        fill_pct: 95
+        at_capacity: true
+        max_queue: 3
+        current_queue: 4
+      crusher-2:
+        status: accepting
+        fill_pct: 35
+        at_capacity: false
+        max_queue: 3
+        current_queue: 1
