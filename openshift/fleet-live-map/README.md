@@ -5,8 +5,12 @@ Real-time mining fleet dashboard — observability/UI layer consuming **`mining-
 ## Apply order
 
 ```bash
-oc apply -f openshift/fleet-live-map/
+oc apply -f openshift/fleet-live-map/01-namespace.yaml
+oc apply -f openshift/fleet-live-map/02-configmap.yaml
+oc apply -f openshift/fleet-live-map/03-buildconfig.yaml
 oc start-build fleet-live-map -n fleet-live-map --wait
+oc apply -f openshift/fleet-live-map/04-deployment.yaml
+oc apply -f openshift/fleet-live-map/05-service-route.yaml
 ```
 
 BuildConfig pulls from `https://github.com/SimonDelord/Operational-Technology-Integration-Platform.git` on `main`. Push this repo before building from Git.

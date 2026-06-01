@@ -276,6 +276,33 @@ Per-system design documentation:
 
 ---
 
+## Deployment order (recommended)
+
+Deploy each subsystem from its numbered manifests under [`openshift/`](openshift/). Per-folder apply order and `oc start-build` steps are documented in each subsystem README and in the matching `openshift/*/README.md`.
+
+| Step | Subsystem | Manifest folder | Documentation |
+|------|-----------|-----------------|---------------|
+| 1 | **Kafka (AMQ Streams)** | [`openshift/mining-fleet-kafka/`](openshift/mining-fleet-kafka/) · [GitHub](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/mining-fleet-kafka) | [`openshift/mining-fleet-kafka/README.md`](openshift/mining-fleet-kafka/README.md) |
+| 2 | **Haul trucks** | [`openshift/truck-fleet/`](openshift/truck-fleet/) · [GitHub](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/truck-fleet) | [`truck-fleet/README.md`](truck-fleet/README.md) |
+| 3 | **Crushers** | [`openshift/crusher-fleet/`](openshift/crusher-fleet/) · [GitHub](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/crusher-fleet) | [`crusher-fleet/README.md`](crusher-fleet/README.md) |
+| 4 | **Fleet integration** | [`openshift/fleet-integration/`](openshift/fleet-integration/) · [GitHub](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/fleet-integration) | [`fleet-integration/README.md`](fleet-integration/README.md) |
+| 5 | **Live map** | [`openshift/fleet-live-map/`](openshift/fleet-live-map/) · [GitHub](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/fleet-live-map) | [`fleet-live-map/README.md`](fleet-live-map/README.md) |
+| 6 | **Water sprays** | *(planned — no `openshift/water-spray-fleet/` yet)* | [`water-spray-fleet/README.md`](water-spray-fleet/README.md) |
+
+**Within each folder**, apply manifests in numeric order (`01-`, `02-`, …). Where a folder includes `*buildconfig*.yaml`, run `oc start-build` for the listed BuildConfigs before applying Deployments that reference the built images.
+
+**Cross-folder dependencies:**
+
+- **`mining-fleet-kafka`** — Strimzi cluster must be Ready before `fleet-integration` bridges and `fleet-live-map` can consume/produce topics. Debezium connectors require `truck-fleet` and `crusher-fleet` PostgreSQL to be running.
+- **`truck-fleet`** — MQTT broker and truck agents must be up before `fleet-integration` bridges subscribe to telemetry.
+- **`crusher-fleet`** — Modbus PLCs must be reachable before `crusher-fill-bridge` (in `fleet-integration`) can write fill registers on truck dumps.
+- **`fleet-integration`** — applies `03-kafka-topics.yaml` into the `mining-fleet-kafka` namespace; deploy after the Kafka cluster is Ready.
+- **`fleet-live-map`** — deploy last; consumes topics produced by `fleet-integration`.
+
+Phase 2 hardening (CDC replacing demo bridges, spray Kafka → Modbus) is described in [fleet-integration/README.md](fleet-integration/README.md) and [water-spray-fleet/README.md](water-spray-fleet/README.md).
+
+---
+
 ## Demo pods and workloads
 
 Quick index of **Deployments**, **StatefulSets**, and **KafkaConnectors** used in the mining fleet demo on OpenShift, organized by namespace. Pod names follow the usual `{workload}-{replicaset-hash}-{pod-id}` pattern (Kafka brokers use `{cluster}-{pool}-{ordinal}`).
@@ -342,17 +369,6 @@ for ns in truck-fleet crusher-fleet fleet-integration fleet-live-map mining-flee
 done
 oc get kafkaconnector -n mining-fleet-kafka
 ```
-
----
-
-## Deployment order (recommended)
-
-1. **Kafka** — AMQ Streams cluster, topics `fleet.*`.
-2. **`truck-fleet`** — Postgres, MQTT, mqtt-ingest, truck Pods; live map against Postgres.
-3. **`fleet-integration`** — kafka-truck-bridge, destination-router, mqtt-routing-bridge; demo crusher state.
-4. **`crusher-fleet`** — North/South PLC Pods, collector, historian, S3 export.
-5. **`water-spray-fleet`** — North/South spray PLC Pods; then Kafka → Modbus bridge + spray-controller.
-6. **Integration** — Replace demo bridges with CDC from truck Postgres; crusher collector → Kafka; wire spray rules to truck + crusher events.
 
 ---
 

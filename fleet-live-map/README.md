@@ -80,10 +80,18 @@ Debezium CDC topics (`fleet.truckdb.public.truck_state`, `fleet.crusherdb.public
 
 Prerequisites: `truck-fleet`, `crusher-fleet`, `mining-fleet-kafka`, and `fleet-integration` bridges running with producers pointed at `mining-fleet-kafka`.
 
+### Apply order
+
+Manifests: [`openshift/fleet-live-map/`](../openshift/fleet-live-map/) · [GitHub tree](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/fleet-live-map)
+
 ```bash
 # From OTIP repository root
-oc apply -f openshift/fleet-live-map/
+oc apply -f openshift/fleet-live-map/01-namespace.yaml
+oc apply -f openshift/fleet-live-map/02-configmap.yaml
+oc apply -f openshift/fleet-live-map/03-buildconfig.yaml
 oc start-build fleet-live-map -n fleet-live-map --wait
+oc apply -f openshift/fleet-live-map/04-deployment.yaml
+oc apply -f openshift/fleet-live-map/05-service-route.yaml
 ```
 
 For a local binary build without pushing to GitHub:

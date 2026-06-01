@@ -135,6 +135,8 @@ Same fields as telemetry (except `id`), keyed by `crusher_id`. Updated via upser
 
 ### Apply order
 
+Manifests: [`openshift/crusher-fleet/`](../openshift/crusher-fleet/) · [GitHub tree](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/crusher-fleet)
+
 ```bash
 # From OTIP repository root
 oc apply -f openshift/crusher-fleet/01-namespace.yaml

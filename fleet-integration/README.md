@@ -216,11 +216,31 @@ oc exec -n crusher-fleet deploy/postgresql -- \
 
 ## Prerequisites
 
-1. **`truck-fleet`** running (MQTT broker, truck agents, mqtt-ingest).
-2. **Kafka / AMQ Streams** — dedicated Strimzi cluster `mining-fleet-cluster` in namespace `mining-fleet-kafka` (see [`openshift/mining-fleet-kafka/`](../openshift/mining-fleet-kafka/)).
-3. Optional but recommended: deploy [`openshift/mining-fleet-kafka/06-kafka-console.yaml`](../openshift/mining-fleet-kafka/06-kafka-console.yaml) to inspect topics, consumer groups, and message flow through the dedicated cluster.
+1. **`mining-fleet-kafka`** — Strimzi cluster `mining-fleet-cluster` Ready (see apply order below).
+2. **`truck-fleet`** running (MQTT broker, truck agents, mqtt-ingest).
+3. **`crusher-fleet`** running (Modbus PLCs reachable for `crusher-fill-bridge`).
 
-### Install Kafka topics (when cluster has Strimzi)
+Optional but recommended: deploy [`openshift/mining-fleet-kafka/06-kafka-console.yaml`](../openshift/mining-fleet-kafka/06-kafka-console.yaml) to inspect topics, consumer groups, and message flow through the dedicated cluster.
+
+### Kafka cluster apply order
+
+Manifests: [`openshift/mining-fleet-kafka/`](../openshift/mining-fleet-kafka/) · [GitHub tree](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/mining-fleet-kafka)
+
+```bash
+# From OTIP repository root — deploy before fleet-integration bridges
+oc apply -f openshift/mining-fleet-kafka/01-namespace.yaml
+oc apply -f openshift/mining-fleet-kafka/02-kafka-cluster.yaml
+oc wait kafka/mining-fleet-cluster -n mining-fleet-kafka --for=condition=Ready --timeout=10m
+oc apply -f openshift/mining-fleet-kafka/03-kafka-connect.yaml
+oc wait kafkaconnect/fleet-cdc-connect -n mining-fleet-kafka --for=condition=Ready --timeout=10m
+oc apply -f openshift/mining-fleet-kafka/04-kafka-topics.yaml
+oc apply -f openshift/mining-fleet-kafka/05-debezium-connectors.yaml
+oc apply -f openshift/mining-fleet-kafka/06-kafka-console.yaml
+```
+
+Full details: [`openshift/mining-fleet-kafka/README.md`](../openshift/mining-fleet-kafka/README.md).
+
+### Install Kafka topics (fleet-integration manifests)
 
 ```bash
 # From OTIP repository root
@@ -232,6 +252,10 @@ If AMQ Streams is not installed, commit and apply manifests without topics; serv
 ---
 
 ## Deployment
+
+Manifests: [`openshift/fleet-integration/`](../openshift/fleet-integration/) · [GitHub tree](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/fleet-integration)
+
+### Apply order
 
 ```bash
 oc apply -f openshift/fleet-integration/01-namespace.yaml

@@ -159,7 +159,9 @@ Same fields as telemetry (except `id`), keyed by `truck_id`. Updated via **UPSER
 - Cluster can pull `eclipse-mosquitto:2.0.18` and `postgres:16-alpine`
 - OpenShift internal registry available for built images
 
-### Apply
+### Apply order
+
+Manifests: [`openshift/truck-fleet/`](../openshift/truck-fleet/) · [GitHub tree](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/truck-fleet)
 
 ```bash
 # From OTIP repository root
