@@ -37,10 +37,14 @@ truck-fleet (unchanged)          crusher-fleet (unchanged)        water-spray-fl
                               ↓
                     destination-router
                     consumes: fleet.trucks.telemetry, fleet.crushers.state
-                    produces: fleet.routing.commands
+                    produces: fleet.routing.commands, fleet.truck.commands (stop)
+                              ↓
+                    crusher-capacity-monitor
+                    consumes: fleet.trucks.telemetry, fleet.crushers.state
+                    publishes: MQTT resume + new-destination when fill < 50%
                               ↓
                     mqtt-routing-bridge
-                    consumes fleet.routing.commands → MQTT new-destination/{truck}/{crusher}
+                    consumes fleet.routing.commands, fleet.truck.commands → MQTT
 ```
 
 **`kafka-truck-bridge`** mirrors MQTT truck telemetry to Kafka for **`destination-router`**. **`crusher-fill-bridge`** subscribes directly to truck MQTT (read-only, cross-namespace) to detect dump events and write crusher Modbus registers. It still publishes live state to `fleet.crushers.state` for routing. The deprecated **`crusher-state-producer`** mock is replaced by live state from `crusher-fill-bridge`.
@@ -181,7 +185,9 @@ MQTT bridge publishes to **`fleet/trucks/{truck_id}/command`** with JSON `{"acti
 
 When a truck is in **`hauling`** state and its `destination_crusher` is **at capacity** (from `fleet.crushers.state`), `destination-router` emits a command to the first available alternate crusher.
 
-When **both** crushers are at capacity, all trucks in **`hauling`** receive **stop** commands on `fleet.truck.commands`. When at least one crusher has capacity again, stopped trucks are **resumed** automatically.
+When **both** crushers are at capacity, all trucks in **`hauling`** receive **stop** commands on `fleet.truck.commands` (via `destination-router` → `mqtt-routing-bridge`). When crusher fill drops **below 50%** (configurable), **`crusher-capacity-monitor`** resumes eligible stopped trucks directly on MQTT with reason `crusher_below_50pct` and assigns the best available crusher.
+
+Manual haul holds from the live map (`haul_hold=true`, reason `manual_*`) are **not** overridden by the capacity monitor.
 
 Crusher PLCs drain fill at a constant rate (`DRAIN_RATE_PCT` per tick) when not receiving dumps, simulating ore processing. The historian continues polling Modbus → PostgreSQL.
 
@@ -199,8 +205,8 @@ oc exec -n crusher-fleet deploy/postgresql -- \
 
 | Path | Contents |
 |------|----------|
-| [`poc/fleet-integration/`](../poc/fleet-integration/) | Python services + Dockerfiles |
-| [`openshift/fleet-integration/`](../openshift/fleet-integration/) | Namespace, ConfigMaps, BuildConfigs, Deployments, Kafka topics |
+| [`poc/fleet-integration/`](../../poc/fleet-integration/) | Python services + Dockerfiles |
+| [`openshift/fleet-integration/`](../../openshift/fleet-integration/) | Namespace, ConfigMaps, BuildConfigs, Deployments, Kafka topics |
 
 ### Components
 
@@ -208,7 +214,8 @@ oc exec -n crusher-fleet deploy/postgresql -- \
 |---------|------|
 | **`kafka-truck-bridge`** | Subscribes `fleet/trucks/+/telemetry` on truck-fleet MQTT → produces `fleet.trucks.telemetry` (for destination-router) |
 | **`crusher-fill-bridge`** | Subscribes truck MQTT telemetry (read-only) → writes crusher Modbus on dump events → publishes `fleet.crushers.state` |
-| **`destination-router`** | Consumes telemetry + crusher state → produces `fleet.routing.commands` |
+| **`destination-router`** | Consumes telemetry + crusher state → produces `fleet.routing.commands` and stop on `fleet.truck.commands` |
+| **`crusher-capacity-monitor`** | Consumes telemetry + crusher state → MQTT resume + `new-destination` when fill &lt; threshold |
 | **`mqtt-routing-bridge`** | Consumes routing + truck commands → publishes `new-destination/{truck}/{crusher}` and `fleet/trucks/{truck}/command` to truck-fleet MQTT |
 | **`crusher-state-producer`** | Deprecated mock (replicas=0); replaced by `crusher-fill-bridge` |
 
@@ -216,34 +223,13 @@ oc exec -n crusher-fleet deploy/postgresql -- \
 
 ## Prerequisites
 
-1. **`mining-fleet-kafka`** — Strimzi cluster `mining-fleet-cluster` Ready (see apply order below).
-2. **`truck-fleet`** running (MQTT broker, truck agents, mqtt-ingest).
-3. **`crusher-fleet`** running (Modbus PLCs reachable for `crusher-fill-bridge`).
+1. **`truck-fleet`** running (MQTT broker, truck agents, mqtt-ingest).
+2. **Kafka / AMQ Streams** — dedicated Strimzi cluster `mining-fleet-cluster` in namespace `mining-fleet-kafka` (see `openshift/mining-fleet-kafka/`).
+3. Optional but recommended: deploy `openshift/mining-fleet-kafka/06-kafka-console.yaml` to inspect topics, consumer groups, and message flow through the dedicated cluster.
 
-Optional but recommended: deploy [`openshift/mining-fleet-kafka/06-kafka-console.yaml`](../openshift/mining-fleet-kafka/06-kafka-console.yaml) to inspect topics, consumer groups, and message flow through the dedicated cluster.
-
-### Kafka cluster apply order
-
-Manifests: [`openshift/mining-fleet-kafka/`](../openshift/mining-fleet-kafka/) · [GitHub tree](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/mining-fleet-kafka)
+### Install Kafka topics (when cluster has Strimzi)
 
 ```bash
-# From OTIP repository root — deploy before fleet-integration bridges
-oc apply -f openshift/mining-fleet-kafka/01-namespace.yaml
-oc apply -f openshift/mining-fleet-kafka/02-kafka-cluster.yaml
-oc wait kafka/mining-fleet-cluster -n mining-fleet-kafka --for=condition=Ready --timeout=10m
-oc apply -f openshift/mining-fleet-kafka/03-kafka-connect.yaml
-oc wait kafkaconnect/fleet-cdc-connect -n mining-fleet-kafka --for=condition=Ready --timeout=10m
-oc apply -f openshift/mining-fleet-kafka/04-kafka-topics.yaml
-oc apply -f openshift/mining-fleet-kafka/05-debezium-connectors.yaml
-oc apply -f openshift/mining-fleet-kafka/06-kafka-console.yaml
-```
-
-Full details: [`openshift/mining-fleet-kafka/README.md`](../openshift/mining-fleet-kafka/README.md).
-
-### Install Kafka topics (fleet-integration manifests)
-
-```bash
-# From OTIP repository root
 oc apply -f openshift/fleet-integration/03-kafka-topics.yaml
 ```
 
@@ -253,24 +239,21 @@ If AMQ Streams is not installed, commit and apply manifests without topics; serv
 
 ## Deployment
 
-Manifests: [`openshift/fleet-integration/`](../openshift/fleet-integration/) · [GitHub tree](https://github.com/SimonDelord/Operational-Technology-Integration-Platform/tree/main/openshift/fleet-integration)
-
-### Apply order
-
 ```bash
 oc apply -f openshift/fleet-integration/01-namespace.yaml
 oc apply -f openshift/fleet-integration/02-configmaps.yaml
 oc apply -f openshift/fleet-integration/03-kafka-topics.yaml   # if Kafka present
 oc apply -f openshift/fleet-integration/04-buildconfigs.yaml
-oc start-build kafka-truck-bridge destination-router mqtt-routing-bridge crusher-fill-bridge \
+oc start-build kafka-truck-bridge destination-router mqtt-routing-bridge crusher-fill-bridge crusher-capacity-monitor \
   -n fleet-integration --wait
 oc apply -f openshift/fleet-integration/05-kafka-truck-bridge.yaml
 oc apply -f openshift/fleet-integration/09-crusher-fill-bridge.yaml
 oc apply -f openshift/fleet-integration/07-destination-router.yaml
 oc apply -f openshift/fleet-integration/08-mqtt-routing-bridge.yaml
+oc apply -f openshift/fleet-integration/10-crusher-capacity-monitor.yaml
 ```
 
-BuildConfigs pull from `https://github.com/SimonDelord/Operational-Technology-Integration-Platform.git` on `main`. Push this repo before building.
+BuildConfigs pull from `https://github.com/SimonDelord/alleo-work.git` on `main`. Push this repo before building.
 
 ### Undeploy old crusher-assignment (truck-fleet)
 
@@ -316,6 +299,8 @@ Shared ConfigMap **`fleet-integration-env`**:
 | `CAPACITY_FILL_PCT` | `90` | crusher-fill-bridge |
 | `FILL_PER_LOAD_PCT` | `0.12` | crusher-fill-bridge |
 | `CRUSHER_MODBUS_TARGETS` | ConfigMap `crusher-modbus-targets` | crusher-fill-bridge |
+| `CRUSHER_RESUME_THRESHOLD_PCT` | `50` | crusher-capacity-monitor |
+| `CRUSHER_RESUME_REASON` | `crusher_below_50pct` | crusher-capacity-monitor |
 
 ---
 
@@ -336,4 +321,4 @@ Water-spray rules will consume the same Kafka bus (`fleet.trucks.events`, `fleet
 
 - [truck-fleet/README.md](../truck-fleet/README.md) — truck MQTT/Postgres (unchanged agents)
 - [crusher-fleet/README.md](../crusher-fleet/README.md) — future crusher Kafka producer
-- [`openshift/fleet-integration/README.md`](../openshift/fleet-integration/README.md) — manifest index
+- [`openshift/fleet-integration/README.md`](../../openshift/fleet-integration/README.md) — manifest index
